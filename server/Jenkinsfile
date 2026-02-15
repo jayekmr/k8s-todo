@@ -9,7 +9,7 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/jayekmr/k8s-todo.git',
@@ -25,7 +25,7 @@ pipeline {
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Push Image to DockerHub') {
             steps {
                 script {
                     docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-cred-id') {
@@ -35,44 +35,52 @@ pipeline {
             }
         }
 
-        stage('Configure kubeconfig') {
+        stage('Configure kubeconfig (EKS Login)') {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
                     credentialsId: 'aws-eks-credentials-id'
                 ]]) {
                     sh '''
-                      aws eks update-kubeconfig \
-                      --region $AWS_REGION \
-                      --name $CLUSTER_NAME
+                        aws eks update-kubeconfig \
+                        --region $AWS_REGION \
+                        --name $CLUSTER_NAME
 
-                      kubectl get nodes
+                        kubectl get nodes
                     '''
                 }
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Deploy Kubernetes Manifests') {
             steps {
                 sh 'kubectl apply -f k8s/'
             }
         }
 
-        stage('Update Image') {
+        stage('Update Deployment Image') {
             steps {
                 sh '''
-                kubectl set image deployment/go-app-deployment \
-go-app=jayekmr/go-todo:latest
-
+                  kubectl set image deployment/go-app-deployment \
+                  go-app=${IMAGE_NAME}:latest
                 '''
             }
         }
 
-        stage('Verify') {
+        stage('Verify Deployment') {
             steps {
                 sh 'kubectl get pods -o wide'
                 sh 'kubectl get svc'
             }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Deployment successful!"
+        }
+        failure {
+            echo "❌ Deployment failed!"
         }
     }
 }
