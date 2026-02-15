@@ -2,9 +2,9 @@ pipeline {
     agent any
 
     environment {
-        AWS_REGION  = 'eu-north-1'
+        AWS_REGION  = 'ap-southeast-2'
         CLUSTER_NAME = 'my-eks-cluster'
-        IMAGE_NAME  = 'andrews326/go-todo'
+        IMAGE_NAME  = 'jayekmr/go-todo'
         K8S_DIR     = 'k8s'
     }
 
@@ -12,7 +12,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 git branch: 'master',
-                    url: 'https://github.com/andrews326/todo.git',
+                    url: 'https://github.com/jayekmr/k8s-todo.git',
                     credentialsId: 'github-cred'
             }
         }
