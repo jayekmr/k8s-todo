@@ -4,7 +4,9 @@ pipeline {
     environment {
         AWS_REGION   = 'ap-southeast-2'
         CLUSTER_NAME = 'my-eks-cluster'
-        IMAGE_NAME   = 'jayekmr/go-todo'
+
+        GO_IMAGE     = 'jayekmr/go-todo'
+        FE_IMAGE     = 'jayekmr/react-frontend'
     }
 
     stages {
@@ -17,70 +19,81 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build Backend Image') {
             steps {
                 script {
-                    docker.build("${IMAGE_NAME}:latest", "./server")
+                    docker.build("${GO_IMAGE}:latest", "./server")
                 }
             }
         }
 
-        stage('Push Image to DockerHub') {
+        stage('Build Frontend Image') {
+            steps {
+                script {
+                    docker.build("${FE_IMAGE}:latest", "./ui")
+                }
+            }
+        }
+
+        stage('Push Images to DockerHub') {
             steps {
                 script {
                     docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-cred-id') {
-                        sh "docker push ${IMAGE_NAME}:latest"
+                        sh "docker push ${GO_IMAGE}:latest"
+                        sh "docker push ${FE_IMAGE}:latest"
                     }
                 }
             }
         }
 
-        stage('Configure kubeconfig (EKS Login)') {
+        stage('Configure EKS Access') {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
                     credentialsId: 'aws-eks-credentials-id'
                 ]]) {
                     sh '''
-                        aws eks update-kubeconfig \
-                        --region $AWS_REGION \
-                        --name $CLUSTER_NAME
+                      aws eks update-kubeconfig \
+                      --region $AWS_REGION \
+                      --name $CLUSTER_NAME
 
-                        kubectl get nodes
+                      kubectl get nodes
                     '''
                 }
             }
         }
 
-        stage('Deploy Kubernetes Manifests') {
-            steps {
-                sh 'kubectl apply -f k8s/'
-            }
-        }
+ 
 
-        stage('Update Deployment Image') {
+        stage('Update Images in Deployments') {
             steps {
                 sh '''
-                  kubectl set image deployment/go-app-deployment \
-                  go-app=${IMAGE_NAME}:latest
+         kubectl set image deployment/go-app-deployment \
+go-app=${GO_IMAGE}:latest
+
+
+                  kubectl set image deployment/react-frontend-deployment \
+                  react-frontend=${FE_IMAGE}:latest
                 '''
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                sh 'kubectl get pods -o wide'
-                sh 'kubectl get svc'
+                sh '''
+                  kubectl get pods -o wide
+                  kubectl get svc
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "✅ Deployment successful!"
+            echo "✅ Full stack app deployed to AWS EKS"
         }
         failure {
-            echo "❌ Deployment failed!"
+            echo "❌ Deployment failed. Check logs."
         }
     }
 }
