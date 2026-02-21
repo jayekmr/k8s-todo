@@ -3,18 +3,23 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Copy package files first (better caching)
 COPY package*.json ./
+
+# Install dependencies
 RUN npm install
 
+# Copy source
 COPY . .
 
+# 🔥 FIX: ensure vite is executable
+RUN chmod -R +x node_modules/.bin
+
+# Build app
 RUN npm run build
 
 # ---------- Stage 2: Nginx ----------
-FROM nginx:alpine
-
-RUN rm /etc/nginx/conf.d/default.conf
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+FROM nginx:stable-alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 
