@@ -1,26 +1,19 @@
-FROM golang:1.24.3-alpine AS builder
+# ---------- Stage 1: Build ----------
+FROM golang:1.22-alpine AS builder
 
-WORKDIR /todo
-
+WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
+
 COPY . .
+RUN go build -o main ./cmd/main.go
 
-ENV DB_USER=admin
-ENV DB_PASS=admin123
-ENV DB_HOST=mysql-container
-ENV DB_PORT=3306
-ENV DB_NAME=mydb
-ENV JWT_SECRET=G9s!zX7$eA2@tKp
-
-EXPOSE 9000
-
-RUN go build -o todo ./cmd/main.go
-
+# ---------- Stage 2: Runtime ----------
 FROM alpine:latest
 
-COPY --from=builder /todo/todo .
+WORKDIR /root/
+COPY --from=builder /app/main .
 
 EXPOSE 9000
 
-ENTRYPOINT [ "./todo" ]
+CMD ["./main"]
